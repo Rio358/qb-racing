@@ -1,7 +1,7 @@
 -----------------------
 ----   Variables   ----
 -----------------------
-local QBCore = exports['qb-core']:GetCoreObject()
+local PlayerData = {}
 local Countdown = 10
 local ToFarCountdown = 10
 local FinishedUITimeout = false
@@ -16,7 +16,7 @@ local CreatorData = {
     RaceName = nil,
     RacerName = nil,
     Checkpoints = {},
-    TireDistance = 3.0,
+    TireDistance = 5.0,
     ConfirmDelete = false,
 }
 
@@ -131,10 +131,10 @@ function DeleteCheckpoint()
             end
             CreatorData.Checkpoints = NewCheckpoints
         else
-            QBCore.Functions.Notify(Lang:t("error.slow_down"), 'error')
+            Notify('inform', "You can't go that fast!")
         end
     else
-        QBCore.Functions.Notify(Lang:t("error.slow_down"), 'error')
+        Notify('inform', "You can't go that fast!")
     end
 end
 
@@ -188,9 +188,8 @@ function SaveRace()
 
     CreatorData.RaceDistance = RaceDistance
 
-    TriggerServerEvent('qb-racing:server:SaveRace', CreatorData)
-    Lang:t("error.slow_down")
-    QBCore.Functions.Notify(Lang:t("success.race_saved")..'('..CreatorData.RaceName..')', 'success')
+    TriggerServerEvent('racing:server:SaveRace', CreatorData)
+    Notify("inform", "Race Saved as (" ..CreatorData.RaceName.. ")")
 
     DeleteCreatorCheckpoints()
 
@@ -312,7 +311,7 @@ function CreatorLoop()
                     if CreatorData.Checkpoints and next(CreatorData.Checkpoints) then
                         DeleteCheckpoint()
                     else
-                        QBCore.Functions.Notify(Lang:t("error.no_checkpoints_to_delete"), 'error')
+                        Notify("error","No Checkpoints to delete")
                     end
                 end
 
@@ -320,7 +319,7 @@ function CreatorLoop()
                     if CreatorData.Checkpoints and #CreatorData.Checkpoints >= Config.MinimumCheckpoints then
                         SaveRace()
                     else
-                        QBCore.Functions.Notify(Lang:t("error.not_enough_checkpoints")..'('..Config.MinimumCheckpoints..')', 'error')
+                        Notify("error","Not enough checkpoints "..'('..Config.MinimumCheckpoints..')')
                     end
                 end
 
@@ -328,7 +327,7 @@ function CreatorLoop()
                     if CreatorData.TireDistance < Config.MaxTireDistance then
                         CreatorData.TireDistance = CreatorData.TireDistance + 1.0
                     else
-                        QBCore.Functions.Notify(Lang:t("error.max_tire_distance")..Config.MaxTireDistance)
+                        Notify("error","The max distance allowed is "..Config.MaxTireDistance)
                     end
                 end
 
@@ -336,25 +335,25 @@ function CreatorLoop()
                     if CreatorData.TireDistance > Config.MinTireDistance then
                         CreatorData.TireDistance = CreatorData.TireDistance - 1.0
                     else
-                        QBCore.Functions.Notify(Lang:t("error.min_tire_distance")..Config.MinTireDistance)
+                        Notify("error","The min distance allowed is "..Config.MinTireDistance)
                     end
                 end
             else
                 local coords = GetEntityCoords(PlayerPedId())
-                DrawText3Ds(coords.x, coords.y, coords.z, Lang:t("text.get_in_vehicle"))
+                DrawText3Ds(coords.x, coords.y, coords.z, "Get in a vehicle to start")
             end
 
             if IsControlJustPressed(0, 163) or IsDisabledControlJustPressed(0, 163) then
                 if not CreatorData.ConfirmDelete then
                     CreatorData.ConfirmDelete = true
-                    QBCore.Functions.Notify(Lang:t("error.editor_confirm"), 'error')
+                    Notify("error","Press [9] again to confirm")
                 else
                     DeleteCreatorCheckpoints()
 
                     RaceData.InCreator = false
                     CreatorData.RaceName = nil
                     CreatorData.Checkpoints = {}
-                    QBCore.Functions.Notify(Lang:t("error.editor_canceled"), 'error')
+                    Notify("error","Editing Canceled")
                     CreatorData.ConfirmDelete = false
                 end
             end
@@ -407,6 +406,11 @@ function RaceUI()
             Wait(12)
         end
     end)
+end
+
+
+function Notify(type,msg)
+    exports.mythic_notify:SendAlert(type,msg,5000)
 end
 
 function SetupRace(RaceData, Laps)
@@ -530,10 +534,10 @@ function DeleteCurrentRaceCheckpoints()
 end
 
 function FinishRace()
-    TriggerServerEvent('qb-racing:server:FinishPlayer', CurrentRaceData, CurrentRaceData.TotalTime, CurrentRaceData.TotalLaps, CurrentRaceData.BestLap)
-    QBCore.Functions.Notify(Lang:t("success.race_finished")..SecondsToClock(CurrentRaceData.TotalTime), 'success')
+    TriggerServerEvent('racing:server:FinishPlayer', CurrentRaceData, CurrentRaceData.TotalTime, CurrentRaceData.TotalLaps, CurrentRaceData.BestLap)
+    Notify("success","Race Finished in : "..SecondsToClock(CurrentRaceData.TotalTime))
     if CurrentRaceData.BestLap ~= 0 then
-        QBCore.Functions.Notify(Lang:t("success.race_best_lap")..SecondsToClock(CurrentRaceData.BestLap), 'success')
+        Notify("success","Best Lap of :"..SecondsToClock(CurrentRaceData.BestLap))
     end
 
     DeleteCurrentRaceCheckpoints()
@@ -594,13 +598,14 @@ CreateThread(function()
     end
 end)
 
+--[[ Below is some weird double clutching cuckery
 CreateThread(function()
     while true do
         local Driver, plyVeh = Info()
         if Driver then
             if GetVehicleCurrentGear(plyVeh) < 3 and GetVehicleCurrentRpm(plyVeh) == 1.0 and math.ceil(GetEntitySpeed(plyVeh) * 2.236936) > 50 then
               while GetVehicleCurrentRpm(plyVeh) > 0.6 do
-                  SetVehicleCurrentRpm(plyVeh, 0.3)
+                  SetVehicleCurrentRpm(plyVeh, 0.9)
                   Wait(0)
               end
               Wait(800)
@@ -609,6 +614,7 @@ CreateThread(function()
         Wait(500)
     end
 end)
+]]--
 
 CreateThread(function()
     while true do
@@ -633,7 +639,7 @@ CreateThread(function()
                         if CurrentRaceData.CurrentCheckpoint + 1 < #CurrentRaceData.Checkpoints then
                             CurrentRaceData.CurrentCheckpoint = CurrentRaceData.CurrentCheckpoint + 1
                             SetNewWaypoint(CurrentRaceData.Checkpoints[CurrentRaceData.CurrentCheckpoint + 1].coords.x, CurrentRaceData.Checkpoints[CurrentRaceData.CurrentCheckpoint + 1].coords.y)
-                            TriggerServerEvent('qb-racing:server:UpdateRacerData', CurrentRaceData.RaceId, CurrentRaceData.CurrentCheckpoint, CurrentRaceData.Lap, false)
+                            TriggerServerEvent('racing:server:UpdateRacerData', CurrentRaceData.RaceId, CurrentRaceData.CurrentCheckpoint, CurrentRaceData.Lap, false)
                             DoPilePfx()
                             PlaySound(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", 0, 0, 1)
                             SetBlipScale(CurrentRaceData.Checkpoints[CurrentRaceData.CurrentCheckpoint].blip, 0.6)
@@ -642,7 +648,7 @@ CreateThread(function()
                             DoPilePfx()
                             PlaySound(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", 0, 0, 1)
                             CurrentRaceData.CurrentCheckpoint = CurrentRaceData.CurrentCheckpoint + 1
-                            TriggerServerEvent('qb-racing:server:UpdateRacerData', CurrentRaceData.RaceId, CurrentRaceData.CurrentCheckpoint, CurrentRaceData.Lap, true)
+                            TriggerServerEvent('racing:server:UpdateRacerData', CurrentRaceData.RaceId, CurrentRaceData.CurrentCheckpoint, CurrentRaceData.Lap, true)
                             FinishRace()
                         end
                     else
@@ -651,7 +657,7 @@ CreateThread(function()
                                 DoPilePfx()
                                 PlaySound(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", 0, 0, 1)
                                 CurrentRaceData.CurrentCheckpoint = CurrentRaceData.CurrentCheckpoint + 1
-                                TriggerServerEvent('qb-racing:server:UpdateRacerData', CurrentRaceData.RaceId, CurrentRaceData.CurrentCheckpoint, CurrentRaceData.Lap, true)
+                                TriggerServerEvent('racing:server:UpdateRacerData', CurrentRaceData.RaceId, CurrentRaceData.CurrentCheckpoint, CurrentRaceData.Lap, true)
                                 FinishRace()
                             else
                                 DoPilePfx()
@@ -665,18 +671,18 @@ CreateThread(function()
                                 CurrentRaceData.Lap = CurrentRaceData.Lap + 1
                                 CurrentRaceData.CurrentCheckpoint = 1
                                 SetNewWaypoint(CurrentRaceData.Checkpoints[CurrentRaceData.CurrentCheckpoint + 1].coords.x, CurrentRaceData.Checkpoints[CurrentRaceData.CurrentCheckpoint + 1].coords.y)
-                                TriggerServerEvent('qb-racing:server:UpdateRacerData', CurrentRaceData.RaceId, CurrentRaceData.CurrentCheckpoint, CurrentRaceData.Lap, false)
+                                TriggerServerEvent('racing:server:UpdateRacerData', CurrentRaceData.RaceId, CurrentRaceData.CurrentCheckpoint, CurrentRaceData.Lap, false)
                             end
                         else
                             CurrentRaceData.CurrentCheckpoint = CurrentRaceData.CurrentCheckpoint + 1
                             if CurrentRaceData.CurrentCheckpoint ~= #CurrentRaceData.Checkpoints then
                                 SetNewWaypoint(CurrentRaceData.Checkpoints[CurrentRaceData.CurrentCheckpoint + 1].coords.x, CurrentRaceData.Checkpoints[CurrentRaceData.CurrentCheckpoint + 1].coords.y)
-                                TriggerServerEvent('qb-racing:server:UpdateRacerData', CurrentRaceData.RaceId, CurrentRaceData.CurrentCheckpoint, CurrentRaceData.Lap, false)
+                                TriggerServerEvent('racing:server:UpdateRacerData', CurrentRaceData.RaceId, CurrentRaceData.CurrentCheckpoint, CurrentRaceData.Lap, false)
                                 SetBlipScale(CurrentRaceData.Checkpoints[CurrentRaceData.CurrentCheckpoint].blip, 0.6)
                                 SetBlipScale(CurrentRaceData.Checkpoints[CurrentRaceData.CurrentCheckpoint + 1].blip, 1.0)
                             else
                                 SetNewWaypoint(CurrentRaceData.Checkpoints[1].coords.x, CurrentRaceData.Checkpoints[1].coords.y)
-                                TriggerServerEvent('qb-racing:server:UpdateRacerData', CurrentRaceData.RaceId, CurrentRaceData.CurrentCheckpoint, CurrentRaceData.Lap, false)
+                                TriggerServerEvent('racing:server:UpdateRacerData', CurrentRaceData.RaceId, CurrentRaceData.CurrentCheckpoint, CurrentRaceData.Lap, false)
                                 SetBlipScale(CurrentRaceData.Checkpoints[#CurrentRaceData.Checkpoints].blip, 0.6)
                                 SetBlipScale(CurrentRaceData.Checkpoints[1].blip, 1.0)
                             end
@@ -717,8 +723,8 @@ CreateThread(function()
                     }
                 }
 
-                DrawText3Ds(Offset.left.x, Offset.left.y, Offset.left.z, Lang:t("text.checkpoint_left"))
-                DrawText3Ds(Offset.right.x, Offset.right.y, Offset.right.z, Lang:t("text.checkpoint_right"))
+                DrawText3Ds(Offset.left.x, Offset.left.y, Offset.left.z, "Left Checkpoint")
+                DrawText3Ds(Offset.right.x, Offset.right.y, Offset.right.z, "Right Checkpoint")
             end
         end
         Wait(0)
@@ -735,12 +741,12 @@ AddEventHandler('onResourceStop', function(resource)
     end
 end)
 
-RegisterNetEvent('qb-racing:server:ReadyJoinRace', function(RaceData)
+RegisterNetEvent('racing:server:ReadyJoinRace', function(RaceData)
     RaceData.RacerName = RaceData.SetupRacerName
-    TriggerServerEvent('qb-racing:server:JoinRace', RaceData)
+    TriggerServerEvent('racing:server:JoinRace', RaceData)
 end)
 
-RegisterNetEvent('qb-racing:client:StartRaceEditor', function(RaceName, RacerName)
+RegisterNetEvent('racing:client:StartRaceEditor', function(RaceName, RacerName)
     if not RaceData.InCreator then
         CreatorData.RaceName = RaceName
         CreatorData.RacerName = RacerName
@@ -748,49 +754,49 @@ RegisterNetEvent('qb-racing:client:StartRaceEditor', function(RaceName, RacerNam
         CreatorUI()
         CreatorLoop()
     else
-        QBCore.Functions.Notify(Lang:t("error.already_making_race"), 'error')
+        Notify("error", "You are already making a race?")
     end
 end)
 
-RegisterNetEvent('qb-racing:client:UpdateRaceRacerData', function(RaceId, RaceData)
+RegisterNetEvent('racing:client:UpdateRaceRacerData', function(RaceId, RaceData)
     if (CurrentRaceData.RaceId ~= nil) and CurrentRaceData.RaceId == RaceId then
         CurrentRaceData.Racers = RaceData.Racers
     end
 end)
 
-RegisterNetEvent('qb-racing:client:JoinRace', function(Data, Laps, RacerName)
+RegisterNetEvent('racing:client:JoinRace', function(Data, Laps, RacerName)
     if not RaceData.InRace then
         Data.RacerName = RacerName
         RaceData.InRace = true
         SetupRace(Data, Laps)
-        QBCore.Functions.Notify(Lang:t("primary.race_joined"))
-        TriggerServerEvent('qb-racing:server:UpdateRaceState', CurrentRaceData.RaceId, false, true)
+        Notify("inform", "You joined the race.")
+        TriggerServerEvent('racing:server:UpdateRaceState', CurrentRaceData.RaceId, false, true)
     else
-        QBCore.Functions.Notify(Lang:t("error.already_in_race"), 'error')
+        Notify("inform", "You are already in a race.")
     end
 end)
 
-RegisterNetEvent('qb-racing:client:UpdateRaceRacers', function(RaceId, Racers)
+RegisterNetEvent('racing:client:UpdateRaceRacers', function(RaceId, Racers)
     if CurrentRaceData.RaceId == RaceId then
         CurrentRaceData.Racers = Racers
     end
 end)
 
-RegisterNetEvent('qb-racing:client:LeaveRace', function(data)
+RegisterNetEvent('racing:client:LeaveRace', function(data)
     DeleteCurrentRaceCheckpoints()
     FreezeEntityPosition(GetVehiclePedIsIn(PlayerPedId(), false), false)
 end)
 
-RegisterNetEvent('qb-racing:client:RaceCountdown', function()
-    TriggerServerEvent('qb-racing:server:UpdateRaceState', CurrentRaceData.RaceId, true, false)
+RegisterNetEvent('racing:client:RaceCountdown', function()
+    TriggerServerEvent('racing:server:UpdateRaceState', CurrentRaceData.RaceId, true, false)
     if CurrentRaceData.RaceId ~= nil then
         while Countdown ~= 0 do
             if CurrentRaceData.RaceName ~= nil then
                 if Countdown == 10 then
-                    QBCore.Functions.Notify(Lang:t("primary.race_will_start"), 'primary', 2500)
+                    Notify("inform",  "The race will start in 10 seconds.")
                     PlaySound(-1, "slow", "SHORT_PLAYER_SWITCH_SOUND_SET", 0, 0, 1)
                 elseif Countdown <= 5 then
-                    QBCore.Functions.Notify(Countdown, 'error', 500)
+                    Notify("inform", Countdown)
                     PlaySound(-1, "slow", "SHORT_PLAYER_SWITCH_SOUND_SET", 0, 0, 1)
                 end
                 Countdown = Countdown - 1
@@ -802,7 +808,7 @@ RegisterNetEvent('qb-racing:client:RaceCountdown', function()
         end
         if CurrentRaceData.RaceName ~= nil then
             SetNewWaypoint(CurrentRaceData.Checkpoints[CurrentRaceData.CurrentCheckpoint + 1].coords.x, CurrentRaceData.Checkpoints[CurrentRaceData.CurrentCheckpoint + 1].coords.y)
-            QBCore.Functions.Notify(Lang:t("success.race_go"), 'success', 1000)
+            Notify("success", "Go!")
             SetBlipScale(CurrentRaceData.Checkpoints[CurrentRaceData.CurrentCheckpoint + 1].blip, 1.0)
             FreezeEntityPosition(GetVehiclePedIsIn(PlayerPedId(), true), false)
             DoPilePfx()
@@ -813,19 +819,19 @@ RegisterNetEvent('qb-racing:client:RaceCountdown', function()
             Countdown = 10
         end
     else
-        QBCore.Functions.Notify(Lang:t("error.already_in_race"), 'error')
+        Notify("error", "You are already in a race.")
     end
 end)
 
-RegisterNetEvent('qb-racing:client:PlayerFinish', function(RaceId, Place, RacerName)
+RegisterNetEvent('racing:client:PlayerFinish', function(RaceId, Place, RacerName)
     if CurrentRaceData.RaceId ~= nil then
         if CurrentRaceData.RaceId == RaceId then
-            QBCore.Functions.Notify(RacerName..Lang:t("primary.racer_finished_place")..Place, 'primary', 3500)
+            Notify("inform", "Finished in place: "..Place)
         end
     end
 end)
 
-RegisterNetEvent('qb-racing:client:WaitingDistanceCheck', function()
+RegisterNetEvent('racing:client:WaitingDistanceCheck', function()
     Wait(1000)
     CreateThread(function()
         while true do
@@ -838,9 +844,9 @@ RegisterNetEvent('qb-racing:client:WaitingDistanceCheck', function()
                     if dist > 115.0 then
                         if ToFarCountdown ~= 0 then
                             ToFarCountdown = ToFarCountdown - 1
-                            QBCore.Functions.Notify(Lang:t("error.return_to_start")..ToFarCountdown..'s', 'error', 500)
+                            Notify("error", "Return to the start or you will be kicked from the race: "..ToFarCountdown)
                         else
-                            TriggerServerEvent('qb-racing:server:LeaveRace', CurrentRaceData)
+                            TriggerServerEvent('racing:server:LeaveRace', CurrentRaceData)
                             ToFarCountdown = 10
                             break
                         end
@@ -859,62 +865,67 @@ RegisterNetEvent('qb-racing:client:WaitingDistanceCheck', function()
     end)
 end)
 
-RegisterNetEvent("qb-racing:Client:OpenMainMenu", function(data)
+RegisterNetEvent("racing:Client:OpenMainMenu", function(data)
     local type = data.type
     local name = data.name
 
-    exports['qb-menu']:openMenu({
+    exports['menu']:openMenu({
         {
-            header = Lang:t("menu.ready_to_race")..name..'?',
+            header ="Ready to Race ?",
             isMenuHeader = true
         },
         {
-            header = Lang:t("menu.current_race"),
-            txt = Lang:t("menu.current_race_txt"),
+            header = "Current Race",
+            txt = "Options for your currently entered race.",
             disabled = (CurrentRaceData.RaceId == nil),
             params = {
-                event = "qb-racing:Client:CurrentRaceMenu",
-                args = { type = type, name = name }
+                event = "racing:Client:CurrentRaceMenu",
+                args = { 
+                    type = type,
+                    name = name 
+                }
             }
         },
         {
-            header = Lang:t("menu.available_races"),
-            txt = Lang:t("menu.available_races"),
-            disabled = not Config.Permissions[type].join,
+            header = "Available Races",
+            txt = "See all the currently available races right now.",
             params = {
-                event = "qb-racing:Client:AvailableRacesMenu",
-                args = { type = type, name = name }
+                event = "racing:Client:AvailableRacesMenu",
+                args = { 
+                    type = type, 
+                    name = name 
+                }
             }
         },
         {
-            header = Lang:t("menu.race_records"),
-            txt = Lang:t("menu.race_records_txt"),
-            disabled = not Config.Permissions[type].records,
+            header = "Race Records",
+            txt = "See all records for races.",
             params = {
-                event = "qb-racing:Client:RaceRecordsMenu",
-                args = { type = type, name = name }
+                event = "racing:Client:RaceRecordsMenu",
+                args = { 
+                    type = type, 
+                    name = name 
+                }
             }
         },
         {
-            header = Lang:t("menu.setup_race"),
+            header = "Setup a Race",
             txt = "",
-            disabled = not Config.Permissions[type].setup,
             params = {
-                event = "qb-racing:Client:SetupRaceMenu",
+                event = "racing:Client:SetupRaceMenu",
                 args = { type = type, name = name }
             }
         },
         {
-            header = Lang:t("menu.create_race"),
+            header = "Create a Race",
             txt = "",
-            disabled = not Config.Permissions[type].create,
             params = {
-                event = "qb-racing:Client:CreateRaceMenu",
+                event = "racing:Client:CreateRaceMenu",
                 args = { type = type, name = name }
             }
         },
         {
-            header = Lang:t("menu.close"),
+            header = "Close Menu",
             txt = "",
             params = {
                 event = "qb-menu:client:closeMenu"
@@ -924,7 +935,7 @@ RegisterNetEvent("qb-racing:Client:OpenMainMenu", function(data)
 
 end)
 
-RegisterNetEvent("qb-racing:Client:CurrentRaceMenu", function(data)
+RegisterNetEvent("racing:Client:CurrentRaceMenu", function(data)
     if not CurrentRaceData.RaceId then
         return
     end
@@ -932,45 +943,45 @@ RegisterNetEvent("qb-racing:Client:CurrentRaceMenu", function(data)
     local racers = 0
     for _ in pairs(CurrentRaceData.Racers) do racers = racers + 1 end
 
-    exports['qb-menu']:openMenu({
+    exports['menu']:openMenu({
         {
-            header = CurrentRaceData.RaceName..' | '..racers..Lang:t("menu.racers"),
+            header = CurrentRaceData.RaceName..' | '..racers.."racer(s)",
             isMenuHeader = true
         },
         {
-            header = Lang:t("menu.start_race"),
+            header = "Start Race",
             txt = "",
-            disabled = (not (CurrentRaceData.OrganizerCID == QBCore.Functions.GetPlayerData().citizenid) or CurrentRaceData.Started),
+            disabled = (CurrentRaceData.Started),
             params = {
                 isServer = true,
-                event = "qb-racing:server:StartRace",
+                event = "racing:server:StartRace",
                 args = CurrentRaceData.RaceId
             }
         },
         {
-            header = Lang:t("menu.leave_race"),
+            header = "Leave race",
             txt = "",
             params = {
                 isServer = true,
-                event = "qb-racing:server:LeaveRace",
+                event = "racing:server:LeaveRace",
                 args = CurrentRaceData
             }
         },
         {
-            header = Lang:t("menu.go_back"),
+            header = "Go Back",
             params = {
-                event = "qb-racing:Client:OpenMainMenu",
+                event = "racing:Client:OpenMainMenu",
                 args = { type = data.type, name = data.name }
             }
         },
     })
 end)
 
-RegisterNetEvent("qb-racing:Client:AvailableRacesMenu", function(data)
-    QBCore.Functions.TriggerCallback('qb-racing:server:GetRaces', function(Races)
+RegisterNetEvent("racing:Client:AvailableRacesMenu", function(data)
+    ESX.TriggerServerCallback('racing:server:GetRaces', function(Races)
         local menu = {
             {
-                header = Lang:t("menu.available_races"),
+                header = "Available Races",
                 isMenuHeader = true
             },
         }
@@ -985,46 +996,46 @@ RegisterNetEvent("qb-racing:Client:AvailableRacesMenu", function(data)
 
             menu[#menu+1] = {
                 header = RaceData.RaceName,
-                txt = string.format(Lang:t("menu.race_info"), race.Laps, RaceData.Distance, racers),
+                txt = "Race Info :", race.Laps, RaceData.Distance, racers,
                 disabled = CurrentRaceData.RaceId == RaceData.RaceId,
                 params = {
                     isServer = true,
-                    event = "qb-racing:server:JoinRace",
+                    event = "racing:server:JoinRace",
                     args = race
                 }
             }
         end
 
         menu[#menu+1] = {
-            header = Lang:t("menu.go_back"),
+            header = "Go Back",
             params = {
-                event = "qb-racing:Client:OpenMainMenu",
+                event = "racing:Client:OpenMainMenu",
                 args = { type = data.type, name = data.name }
             }
         }
 
         if #menu == 2 then
-            QBCore.Functions.Notify(Lang:t("primary.no_pending_races"))
-            TriggerEvent('qb-racing:Client:OpenMainMenu', { type = data.type, name = data.name })
+            Notify("inform", "There are currently no Races going on")
+            TriggerEvent('racing:Client:OpenMainMenu', { type = data.type, name = data.name })
             return
         end
 
-        exports['qb-menu']:openMenu(menu)
+        exports['menu']:openMenu(menu)
     end)
 end)
 
 
-RegisterNetEvent("qb-racing:Client:RaceRecordsMenu", function(data)
-    QBCore.Functions.TriggerCallback('qb-racing:server:GetRacingLeaderboards', function(Races)
+RegisterNetEvent("racing:Client:RaceRecordsMenu", function(data)
+    ESX.TriggerServerCallback('racing:server:GetRacingLeaderboards', function(Races)
         local menu = {
             {
-                header = Lang:t("menu.race_records"),
+                header = "Race Records",
                 isMenuHeader = true
             },
         }
 
         for RaceName,RecordData in pairs(Races) do
-            local text = Lang:t("menu.unclaimed")
+            local text = "Unclaimed Record!"
             if next(RecordData) then text = string.format("%s | %s ", RecordData.Holder, SecondsToClock(RecordData.Time)) end
 
             menu[#menu+1] = {
@@ -1035,26 +1046,26 @@ RegisterNetEvent("qb-racing:Client:RaceRecordsMenu", function(data)
         end
 
         menu[#menu+1] = {
-            header = Lang:t("menu.go_back"),
+            header = "Go Back",
             params = {
-                event = "qb-racing:Client:OpenMainMenu",
+                event = "racing:Client:OpenMainMenu",
                 args = { type = data.type, name = data.name }
             }
         }
 
         if #menu == 2 then
-            QBCore.Functions.Notify(Lang:t("primary.no_races_exist"))
-            TriggerEvent('qb-racing:Client:OpenMainMenu', { type = data.type, name = data.name })
+            Notify("inform", "No races exist yet to see records of!")
+            TriggerEvent('racing:Client:OpenMainMenu', { type = data.type, name = data.name })
             return
         end
 
-        exports['qb-menu']:openMenu(menu)
+        exports['menu']:openMenu(menu)
     end)
 end)
 
-RegisterNetEvent("qb-racing:Client:SetupRaceMenu", function(data)
-    QBCore.Functions.TriggerCallback('qb-racing:server:GetListedRaces', function(Races)
-        local tracks = { { value = "none", text = Lang:t("menu.choose_a_track") } }
+RegisterNetEvent("racing:Client:SetupRaceMenu", function(data)
+    ESX.TriggerServerCallback('racing:server:GetListedRaces', function(Races)
+        local tracks = { { value = "none", text = "Choose a track" } }
         for id,track in pairs(Races) do
             if not track.Waiting then
                 tracks[#tracks+1] = {  value = id, text = string.format("%s | %s | %sm", track.RaceName, track.CreatorName, track.Distance) }
@@ -1062,23 +1073,23 @@ RegisterNetEvent("qb-racing:Client:SetupRaceMenu", function(data)
         end
 
         if #tracks == 1 then
-            QBCore.Functions.Notify(Lang:t("primary.no_available_tracks"))
-            TriggerEvent('qb-racing:Client:OpenMainMenu', { type = data.type, name = data.name })
+            Notify("inform", "There are no available tracks at the moment to use.")
+            TriggerEvent('racing:Client:OpenMainMenu', { type = data.type, name = data.name })
             return
         end
 
-        local dialog = exports['qb-input']:ShowInput({
-            header = Lang:t("menu.racing_setup"),
+        local dialog = exports['input']:ShowInput({
+            header = "Racing Setup",
             submitText = "✓",
             inputs = {
                 {
-                    text = Lang:t("menu.select_track"),
+                    text = "Select Track",
                     name = "track",
                     type = "select",
                     options = tracks
                 },
                 {
-                    text = Lang:t("menu.number_laps"),
+                    text = "Number of Laps",
                     name = "laps",
                     type = "number",
                     isRequired = true
@@ -1087,21 +1098,21 @@ RegisterNetEvent("qb-racing:Client:SetupRaceMenu", function(data)
         })
 
         if not dialog or dialog.track == "none" then
-            TriggerEvent('qb-racing:Client:OpenMainMenu', { type = data.type, name = data.name })
+            TriggerEvent('racing:Client:OpenMainMenu', { type = data.type, name = data.name })
             return
         end
 
-        TriggerServerEvent('qb-racing:server:SetupRace', dialog.track, tonumber(dialog.laps), data.name)
+        TriggerServerEvent('racing:server:SetupRace', dialog.track, tonumber(dialog.laps), data.name)
     end)
 end)
 
-RegisterNetEvent("qb-racing:Client:CreateRaceMenu", function(data)
-    local dialog = exports['qb-input']:ShowInput({
-        header = Lang:t("menu.name_track_question"),
-        submitText = "✓",
+RegisterNetEvent("racing:Client:CreateRaceMenu", function(data)
+    print('open up papa')
+    local dialog = exports['input']:ShowInput({
+        header = "What do you want your track to be named?",
         inputs = {
             {
-                text = Lang:t("menu.name_track"),
+                text = "Name the Track",
                 name = "trackname",
                 type = "text",
                 isRequired = true
@@ -1110,30 +1121,28 @@ RegisterNetEvent("qb-racing:Client:CreateRaceMenu", function(data)
     })
 
     if not dialog then
-        TriggerEvent('qb-racing:Client:OpenMainMenu', { type = data.type, name = data.name })
+        TriggerEvent('racing:Client:OpenMainMenu', { type = data.type, name = data.name })
         return
     end
 
     if #dialog.trackname < Config.MinTrackNameLength then
-        QBCore.Functions.Notify(Lang:t("error.name_too_short"), "error")
-        TriggerEvent("qb-racing:Client:CreateRaceMenu", { type = data.type, name = data.name })
+        Notify("error", "The name for this track is too short!")
+        TriggerEvent("racing:Client:CreateRaceMenu", { type = data.type, name = data.name })
         return
     end
 
     if #dialog.trackname > Config.MaxTrackNameLength then
-        QBCore.Functions.Notify(Lang:t("error.name_too_long"), "error")
-        TriggerEvent("qb-racing:Client:CreateRaceMenu", { type = data.type, name = data.name })
+        Notify("error", "The name for this track is too long!")
+        TriggerEvent("racing:Client:CreateRaceMenu", { type = data.type, name = data.name })
         return
     end
 
-    QBCore.Functions.TriggerCallback('qb-racing:server:IsAuthorizedToCreateRaces', function(IsAuthorized, NameAvailable)
-        if not IsAuthorized then return end
+    ESX.TriggerServerCallback('racing:server:IsAuthorizedToCreateRaces', function(NameAvailable)
         if not NameAvailable then
-            QBCore.Functions.Notify(Lang:t("error.race_name_exists"), "error")
-            TriggerEvent("qb-racing:Client:CreateRaceMenu", { type = data.type, name = data.name })
+            Notify("error", "A Race already exists with that Name.")
+            TriggerEvent("racing:Client:CreateRaceMenu", { type = data.type, name = data.name })
             return
         end
-
-        TriggerServerEvent('qb-racing:server:CreateLapRace', dialog.trackname, data.name)
+        TriggerServerEvent('racing:server:CreateLapRace', dialog.trackname, data.name)
     end, dialog.trackname)
 end)

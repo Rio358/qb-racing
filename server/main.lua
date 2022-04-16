@@ -1,7 +1,6 @@
 -----------------------
 ----   Variables   ----
 -----------------------
-local QBCore = exports['qb-core']:GetCoreObject()
 local Races = {}
 local AvailableRaces = {}
 local LastRaces = {}
@@ -38,10 +37,11 @@ end)
 -----------------------
 ---- Server Events ----
 -----------------------
-RegisterNetEvent('qb-racing:server:FinishPlayer', function(RaceData, TotalTime, TotalLaps, BestLap)
+RegisterNetEvent('racing:server:FinishPlayer', function(RaceData, TotalTime, TotalLaps, BestLap)
     local src = source
     local AvailableKey = GetOpenedRaceKey(RaceData.RaceId)
-    local RacerName = RaceData.RacerName
+    local xPlayer = ESX.GetPlayerFromId(src)
+    local RacerName = xPlayer.getName()
     local PlayersFinished = 0
     local AmountOfRacers = 0
 
@@ -78,21 +78,19 @@ RegisterNetEvent('qb-racing:server:FinishPlayer', function(RaceData, TotalTime, 
                 Time = BLap,
                 Holder = RacerName
             }
-            MySQL.Async.execute('UPDATE race_tracks SET records = ? WHERE raceid = ?',
-                {json.encode(Races[RaceData.RaceId].Records), RaceData.RaceId})
-                TriggerClientEvent('QBCore:Notify', src, string.format(Lang:t("success.race_record"), RaceData.RaceName, SecondsToClock(BLap)), 'success')
+            MySQL.update('UPDATE race_tracks SET records = ? WHERE raceid = ?', {json.encode(Races[RaceData.RaceId].Records), RaceData.RaceId})
+                TriggerClientEvent('mythic_notify:client:SendAlert', src, { type = "inform", text = "Race leaderboard updated for : ".. RaceData.RaceName.. " with : " ..SecondsToClock(BLap), length = 10000})
         end
     else
         Races[RaceData.RaceId].Records = {
             Time = BLap,
             Holder = RacerName
         }
-        MySQL.Async.execute('UPDATE race_tracks SET records = ? WHERE raceid = ?',
-            {json.encode(Races[RaceData.RaceId].Records), RaceData.RaceId})
-            TriggerClientEvent('QBCore:Notify', src, string.format(Lang:t("success.race_record"), RaceData.RaceName, SecondsToClock(BLap)), 'success')
+        MySQL.update('UPDATE race_tracks SET records = ? WHERE raceid = ?', {json.encode(Races[RaceData.RaceId].Records), RaceData.RaceId})
+            TriggerClientEvent('mythic_notify:client:SendAlert', src, { type = "inform", text = "Race leaderboard updated for : ".. RaceData.RaceName.. " with : " ..SecondsToClock(BLap), length = 10000})
     end
     AvailableRaces[AvailableKey].RaceData = Races[RaceData.RaceId]
-    TriggerClientEvent('qb-racing:client:PlayerFinish', -1, RaceData.RaceId, PlayersFinished, RacerName)
+    TriggerClientEvent('racing:client:PlayerFinish', -1, RaceData.RaceId, PlayersFinished, RacerName)
     if PlayersFinished == AmountOfRacers then
         if NotFinished ~= nil and next(NotFinished) ~= nil and NotFinished[RaceData.RaceId] ~= nil and
             next(NotFinished[RaceData.RaceId]) ~= nil then
@@ -114,29 +112,25 @@ RegisterNetEvent('qb-racing:server:FinishPlayer', function(RaceData, TotalTime, 
     end
 end)
 
-RegisterNetEvent('qb-racing:server:CreateLapRace', function(RaceName, RacerName)
+RegisterNetEvent('racing:server:CreateLapRace', function(RaceName, RacerName)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = ESX.GetPlayerFromId(src)
 
-    if IsPermissioned(Player.PlayerData.citizenid, 'create') then
-        if IsNameAvailable(RaceName) then
-            TriggerClientEvent('qb-racing:client:StartRaceEditor', source, RaceName, RacerName)
-        else
-            TriggerClientEvent('QBCore:Notify', source, Lang:t("primary.race_name_exists"), 'error')
-        end
+    if IsNameAvailable(RaceName) then
+        TriggerClientEvent('racing:client:StartRaceEditor', source, RaceName, RacerName)
     else
-        TriggerClientEvent('QBCore:Notify', source, Lang:t("primary.no_permission"), 'error')
+        TriggerClientEvent('mythic_notify:client:SendAlert', src, {type="inform", text="This race name already exists.",length=8000})
     end
 end)
 
-RegisterNetEvent('qb-racing:server:JoinRace', function(RaceData)
+RegisterNetEvent('racing:server:JoinRace', function(RaceData)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = ESX.GetPlayerFromId(src)
     local RaceName = RaceData.RaceData.RaceName
     local RaceId = GetRaceId(RaceName)
     local AvailableKey = GetOpenedRaceKey(RaceData.RaceId)
-    local CurrentRace = GetCurrentRace(Player.PlayerData.citizenid)
-    local RacerName = RaceData.RacerName
+    local CurrentRace = GetCurrentRace(Player.getIdentifier())
+    local RacerName = Player.getName()
 
     if CurrentRace ~= nil then
         local AmountOfRacers = 0
@@ -144,41 +138,42 @@ RegisterNetEvent('qb-racing:server:JoinRace', function(RaceData)
         for _,_ in pairs(Races[CurrentRace].Racers) do
             AmountOfRacers = AmountOfRacers + 1
         end
-        Races[CurrentRace].Racers[Player.PlayerData.citizenid] = nil
+        Races[CurrentRace].Racers[Player.getIdentifier()] = nil
         if (AmountOfRacers - 1) == 0 then
             Races[CurrentRace].Racers = {}
             Races[CurrentRace].Started = false
             Races[CurrentRace].Waiting = false
             table.remove(AvailableRaces, PreviousRaceKey)
-            TriggerClientEvent('QBCore:Notify', src, Lang:t("primary.race_last_person"))
-            TriggerClientEvent('qb-racing:client:LeaveRace', src, Races[CurrentRace])
+            TriggerClientEvent('mythic_notify:client:SendAlert', creatorsource,{type="inform", text="You were the last person in that race so it was canceled.",length=8000})
+            TriggerClientEvent('racing:client:LeaveRace', src, Races[CurrentRace])
         else
             AvailableRaces[PreviousRaceKey].RaceData = Races[CurrentRace]
-            TriggerClientEvent('qb-racing:client:LeaveRace', src, Races[CurrentRace])
+            TriggerClientEvent('racing:client:LeaveRace', src, Races[CurrentRace])
         end
     else
-        Races[RaceId].OrganizerCID = Player.PlayerData.citizenid
+        Races[RaceId].OrganizerCID = Player.getIdentifier()
     end
 
     Races[RaceId].Waiting = true
-    Races[RaceId].Racers[Player.PlayerData.citizenid] = {
+    Races[RaceId].Racers[Player.getIdentifier()] = {
         Checkpoint = 0,
         Lap = 1,
         Finished = false,
         RacerName = RacerName,
     }
     AvailableRaces[AvailableKey].RaceData = Races[RaceId]
-    TriggerClientEvent('qb-racing:client:JoinRace', src, Races[RaceId], RaceData.Laps, RacerName)
-    TriggerClientEvent('qb-racing:client:UpdateRaceRacers', src, RaceId, Races[RaceId].Racers)
-    local creatorsource = QBCore.Functions.GetPlayerByCitizenId(AvailableRaces[AvailableKey].SetupCitizenId).PlayerData.source
-    if creatorsource ~= Player.PlayerData.source then
-        TriggerClientEvent('QBCore:Notify', creatorsource, Lang:t("primary.race_someone_joined"))
+    TriggerClientEvent('racing:client:JoinRace', src, Races[RaceId], RaceData.Laps, RacerName)
+    TriggerClientEvent('racing:client:UpdateRaceRacers', src, RaceId, Races[RaceId].Racers)
+    local creatorsource = ESX.GetPlayerFromIdentifier(AvailableRaces[AvailableKey].SetupCitizenId)
+    if creatorsource ~= Player.source then
+        TriggerClientEvent('mythic_notify:client:SendAlert', creatorsource,{type="inform", text="Someone has joined the race.",length=8000})
     end
 end)
 
-RegisterNetEvent('qb-racing:server:LeaveRace', function(RaceData)
+RegisterNetEvent('racing:server:LeaveRace', function(RaceData)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = ESX.GetPlayerFromId(src)
+    local PlayerData = ESX.GetPlayerFromIdentifier(src)
     local RacerName = RaceData.RacerName
     local RaceName = RaceData.RaceName
     if RaceData.RaceData then
@@ -187,10 +182,12 @@ RegisterNetEvent('qb-racing:server:LeaveRace', function(RaceData)
 
     local RaceId = GetRaceId(RaceName)
     local AvailableKey = GetOpenedRaceKey(RaceData.RaceId)
-    local creatorsource = QBCore.Functions.GetPlayerByCitizenId(AvailableRaces[AvailableKey].SetupCitizenId).PlayerData.source
+    local creatorsource = ESX.GetPlayerFromIdentifier(AvailableRaces[AvailableKey].SetupCitizenId)
+    -- local targetSource = ESX.GetPlayerFromId(creatorsource)
+    -- print(targetSource)
 
-    if creatorsource ~= Player.PlayerData.source then
-        TriggerClientEvent('QBCore:Notify', creatorsource, Lang:t("primary.race_someone_left"))
+    if creatorsource ~= Player.source then
+        TriggerClientEvent('mythic_notify:client:SendAlert', creatorsource,{type="inform", text="Someone has left the race.",length=8000})
     end
 
     local AmountOfRacers = 0
@@ -211,7 +208,7 @@ RegisterNetEvent('qb-racing:server:LeaveRace', function(RaceData)
             Holder = RacerName
         }
     end
-    Races[RaceId].Racers[Player.PlayerData.citizenid] = nil
+    Races[RaceId].Racers[Player.identifier] = nil
     if (AmountOfRacers - 1) == 0 then
         if NotFinished ~= nil and next(NotFinished) ~= nil and NotFinished[RaceId] ~= nil and next(NotFinished[RaceId]) ~=
             nil then
@@ -237,20 +234,20 @@ RegisterNetEvent('qb-racing:server:LeaveRace', function(RaceData)
         Races[RaceId].Started = false
         Races[RaceId].Waiting = false
         table.remove(AvailableRaces, AvailableKey)
-        TriggerClientEvent('QBCore:Notify', src, Lang:t("primary.race_last_person"))
-        TriggerClientEvent('qb-racing:client:LeaveRace', src, Races[RaceId])
+        TriggerClientEvent('mythic_notify:client:SendAlert', src, {type="inform", text="You were the last person in that race so it was canceled",length=8000})
+        TriggerClientEvent('racing:client:LeaveRace', src, Races[RaceId])
         LastRaces[RaceId] = nil
         NotFinished[RaceId] = nil
     else
         AvailableRaces[AvailableKey].RaceData = Races[RaceId]
-        TriggerClientEvent('qb-racing:client:LeaveRace', src, Races[RaceId])
+        TriggerClientEvent('racing:client:LeaveRace', src, Races[RaceId])
     end
-    TriggerClientEvent('qb-racing:client:UpdateRaceRacers', src, RaceId, Races[RaceId].Racers)
+    TriggerClientEvent('racing:client:UpdateRaceRacers', src, RaceId, Races[RaceId].Racers)
 end)
 
-RegisterNetEvent('qb-racing:server:SetupRace', function(RaceId, Laps, RacerName)
+RegisterNetEvent('racing:server:SetupRace', function(RaceId, Laps, RacerName)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = ESX.GetPlayerFromId(src)
     if Races[RaceId] ~= nil then
         if not Races[RaceId].Waiting then
             if not Races[RaceId].Started then
@@ -259,12 +256,12 @@ RegisterNetEvent('qb-racing:server:SetupRace', function(RaceId, Laps, RacerName)
                     RaceData = Races[RaceId],
                     Laps = Laps,
                     RaceId = RaceId,
-                    SetupCitizenId = Player.PlayerData.citizenid,
-                    SetupRacerName = RacerName
+                    SetupCitizenId = Player.getIdentifier(),
+                    SetupRacerName = Player.getName()
                 }
                 AvailableRaces[#AvailableRaces+1] = allRaceData
-                TriggerClientEvent('QBCore:Notify', src,  Lang:t("success.race_created"), 'success')
-                TriggerClientEvent('qb-racing:server:ReadyJoinRace', src, allRaceData)
+                TriggerClientEvent('mythic_notify:client:SendAlert', src, {type="success", text ="Race Created", length = 5000})
+                TriggerClientEvent('racing:server:ReadyJoinRace', src, allRaceData)
 
                 CreateThread(function()
                     local count = 0
@@ -275,10 +272,10 @@ RegisterNetEvent('qb-racing:server:SetupRace', function(RaceId, Laps, RacerName)
                         else
                             local AvailableKey = GetOpenedRaceKey(RaceId)
                             for cid, _ in pairs(Races[RaceId].Racers) do
-                                local RacerData = QBCore.Functions.GetPlayerByCitizenId(cid)
+                                local RacerData = ESX.GetPlayerFromIdentifier(cid)
                                 if RacerData ~= nil then
-                                    TriggerClientEvent('QBCore:Notify', RacerData.PlayerData.source, Lang:t("error.race_timed_out"), 'error')
-                                    TriggerClientEvent('qb-racing:client:LeaveRace', RacerData.PlayerData.source, Races[RaceId])
+                                    TriggerClientEvent('mythic_notify:client:SendAlert', RacerData.PlayerData.source,{type="error", text="Race timedout",length=8000})
+                                    TriggerClientEvent('racing:client:LeaveRace', RacerData.PlayerData.source, Races[RaceId])
                                 end
                             end
                             table.remove(AvailableRaces, AvailableKey)
@@ -291,61 +288,63 @@ RegisterNetEvent('qb-racing:server:SetupRace', function(RaceId, Laps, RacerName)
                     end
                 end)
             else
-                TriggerClientEvent('QBCore:Notify', src, Lang:t("error.race_already_started"), 'error')
+                TriggerClientEvent('mythic_notify:client:SendAlert', RacerData.PlayerData.source,{type="error", text="Race Timedout",length=8000})
             end
         else
-            TriggerClientEvent('QBCore:Notify', src, Lang:t("error.race_already_started"), 'error')
+            TriggerClientEvent('mythic_notify:client:SendAlert', RacerData.PlayerData.source,{type="error", text="Race already Started",length=8000})
         end
     else
-        TriggerClientEvent('QBCore:Notify', src, Lang:t("error.race_doesnt_exist"), 'error')
+        TriggerClientEvent('mythic_notify:client:SendAlert', RacerData.PlayerData.source,{type="error", text="This race doesn't exist?",length=8000})
     end
 end)
 
-RegisterNetEvent('qb-racing:server:UpdateRaceState', function(RaceId, Started, Waiting)
+RegisterNetEvent('racing:server:UpdateRaceState', function(RaceId, Started, Waiting)
     Races[RaceId].Waiting = Waiting
     Races[RaceId].Started = Started
 end)
 
-RegisterNetEvent('qb-racing:server:UpdateRacerData', function(RaceId, Checkpoint, Lap, Finished)
+RegisterNetEvent('racing:server:UpdateRacerData', function(RaceId, Checkpoint, Lap, Finished)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
-    local CitizenId = Player.PlayerData.citizenid
+    local Player = ESX.GetPlayerFromId(src)
+    local CitizenId = Player.getIdentifier()
 
     Races[RaceId].Racers[CitizenId].Checkpoint = Checkpoint
     Races[RaceId].Racers[CitizenId].Lap = Lap
     Races[RaceId].Racers[CitizenId].Finished = Finished
 
-    TriggerClientEvent('qb-racing:client:UpdateRaceRacerData', -1, RaceId, Races[RaceId])
+    TriggerClientEvent('racing:client:UpdateRaceRacerData', -1, RaceId, Races[RaceId])
 end)
 
-RegisterNetEvent('qb-racing:server:StartRace', function(RaceId)
+RegisterNetEvent('racing:server:StartRace', function(RaceId)
     local src = source
-    local MyPlayer = QBCore.Functions.GetPlayer(src)
+    local MyPlayer = ESX.GetPlayerFromId(src)
     local AvailableKey = GetOpenedRaceKey(RaceId)
 
     if not RaceId then
-        TriggerClientEvent('QBCore:Notify', src, Lang:t("error.not_in_race"), 'error')
+        TriggerClientEvent('mythic_notify:client:SendAlert', RacerData.PlayerData.source,{type="inform", text="You are not in a race.",length=8000})
         return
     end
 
     if AvailableRaces[AvailableKey].RaceData.Started then
-        TriggerClientEvent('QBCore:Notify', src, Lang:t("error.race_already_started"), 'error')
+        TriggerClientEvent('mythic_notify:client:SendAlert', RacerData.PlayerData.source,{type="inform", text="Race has already started.",length=8000})
         return
     end
 
     AvailableRaces[AvailableKey].RaceData.Started = true
     AvailableRaces[AvailableKey].RaceData.Waiting = false
     for CitizenId, _ in pairs(Races[RaceId].Racers) do
-        local Player = QBCore.Functions.GetPlayerByCitizenId(CitizenId)
+        local Player = ESX.GetPlayerFromIdentifier(CitizenId)
         if Player ~= nil then
-            TriggerClientEvent('qb-racing:client:RaceCountdown', Player.PlayerData.source)
+            TriggerClientEvent('racing:client:RaceCountdown', Player.source)
         end
     end
 end)
 
-RegisterNetEvent('qb-racing:server:SaveRace', function(RaceData)
+RegisterNetEvent('racing:server:SaveRace', function(RaceData)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = ESX.GetPlayerFromId(src)
+    local PlayerName = Player.getName()
+    local PlayerId = Player.getIdentifier()
     local RaceId = GenerateRaceId()
     local Checkpoints = {}
     for k, v in pairs(RaceData.Checkpoints) do
@@ -359,8 +358,8 @@ RegisterNetEvent('qb-racing:server:SaveRace', function(RaceData)
         RaceName = RaceData.RaceName,
         Checkpoints = Checkpoints,
         Records = {},
-        Creator = Player.PlayerData.citizenid,
-        CreatorName = RaceData.RacerName,
+        Creator = Player.Identifier,
+        CreatorName = Player.getName(),
         RaceId = RaceId,
         Started = false,
         Waiting = false,
@@ -369,7 +368,7 @@ RegisterNetEvent('qb-racing:server:SaveRace', function(RaceData)
         LastLeaderboard = {}
     }
     MySQL.Async.insert('INSERT INTO race_tracks (name, checkpoints, creatorid, creatorname, distance, raceid) VALUES (?, ?, ?, ?, ?, ?)',
-        {RaceData.RaceName, json.encode(Checkpoints), Player.PlayerData.citizenid, RaceData.RacerName, RaceData.RaceDistance, RaceId})
+        {RaceData.RaceName, json.encode(Checkpoints), PlayerId, PlayerName, RaceData.RaceDistance, RaceId})
 end)
 
 -----------------------
@@ -392,24 +391,16 @@ end
 
 
 function IsPermissioned(CitizenId, type)
-    local Player = QBCore.Functions.GetPlayerByCitizenId(CitizenId)
+    local Player = ESX.GetPlayerFromId(CitizenId)
 
-    local HasMaster = Player.Functions.GetItemsByName('fob_racing_master')
-    if HasMaster then
-        for _, item in ipairs(HasMaster) do
-            if item.info.owner == CitizenId and Config.Permissions['fob_racing_master'][type] then
-                return true
-            end
-        end
+    local HasMaster = xPlayer.getInventoryItem('fob_racing_master')
+    if HasMaster > 0 then
+        return true
     end
 
-    local HasBasic = Player.Functions.GetItemsByName('fob_racing_basic')
-    if HasBasic then
-        for _, item in ipairs(HasBasic) do
-            if item.info.owner == CitizenId and Config.Permissions['fob_racing_basic'][type] then
-                return true
-            end
-        end
+    local HasBasic = xPlayer.getInventoryItem('fob_racing_basic')
+    if HasBasic > 0 then
+        return true
     end
 end
 
@@ -476,19 +467,33 @@ function GenerateRaceId()
     end
     return RaceId
 end
+--[[ This is just a testing command, but the idea therein from the original version was to gate the access to these races by validation of your possessed key, the Config permissions however, have been circumvented because i cannot be fucked to.]]
+RegisterCommand('issueracekey', function(source,raw,args)
+    local src = source
+    local Player = ESX.GetPlayerFromId(src)
+    local name = Player.getName() -- Pick Relevent getter here, or gate through other means to check if you have the key.
+    local type = name
+    local itemalready = exports.ox_inventory:Search(source,'fob_racing_basic',{type=name, description="A basic Racing Fob."},true)
+    if Player ~= nil then
+        exports.ox_inventory:AddItem(source,"fob_racing_basic",1,{type=name, description="A basic Racing Fob."})
+    end
+end)
 
-function UseRacingFob(source, item)
-    local Player = QBCore.Functions.GetPlayer(source)
-    local citizenid = Player.PlayerData.citizenid
+RegisterNetEvent('racing:server:onUseRaceKey', function(item)
+    UseRacingFob(source,item)
+end)
 
-    if item.info.owner == citizenid then
-        TriggerClientEvent('qb-racing:Client:OpenMainMenu', source, { type = item.name, name = item.info.name})
+function UseRacingFob(source,item)
+    local Player = ESX.GetPlayerFromId(source)
+    local citizenid = Player.getName()
+    if item.metadata.type == citizenid then -- more validation here, not your dongle, no race for u
+        TriggerClientEvent('racing:Client:OpenMainMenu', source, { type = item.name, name = item.type})
     else
-        TriggerClientEvent('QBCore:Notify', source, Lang:t("error.unowned_dongle"), "error")
+        TriggerClientEvent('mythic_notify:client:SendAlert', source, { type = "inform", text = "You do not own this dongle", length = 8000})
     end
 end
 
-QBCore.Functions.CreateCallback('qb-racing:server:GetRacingLeaderboards', function(source, cb)
+ESX.RegisterServerCallback('racing:server:GetRacingLeaderboards', function(source, cb)
     local Leaderboard = {}
     for RaceId, RaceData in pairs(Races) do
         Leaderboard[RaceData.RaceName] = RaceData.Records
@@ -496,91 +501,36 @@ QBCore.Functions.CreateCallback('qb-racing:server:GetRacingLeaderboards', functi
     cb(Leaderboard)
 end)
 
-QBCore.Functions.CreateCallback('qb-racing:server:GetRaces', function(source, cb)
+ESX.RegisterServerCallback('racing:server:GetRaces', function(source, cb)
     cb(AvailableRaces)
 end)
 
-QBCore.Functions.CreateCallback('qb-racing:server:GetListedRaces', function(source, cb)
+ESX.RegisterServerCallback('racing:server:GetListedRaces', function(source, cb)
     cb(Races)
 end)
 
-QBCore.Functions.CreateCallback('qb-racing:server:GetRacingData', function(source, cb, RaceId)
+ESX.RegisterServerCallback('racing:server:GetRacingData', function(source, cb, RaceId)
     cb(Races[RaceId])
 end)
 
-QBCore.Functions.CreateCallback('qb-racing:server:HasCreatedRace', function(source, cb)
-    cb(HasOpenedRace(QBCore.Functions.GetPlayer(source).PlayerData.citizenid))
+ESX.RegisterServerCallback('racing:server:HasCreatedRace', function(source, cb)
+    cb(HasOpenedRace(xPlayer.GetPlayerFromId(source).PlayerData.Identifier))
 end)
 
-QBCore.Functions.CreateCallback('qb-racing:server:IsAuthorizedToCreateRaces', function(source, cb, TrackName)
-    cb(IsPermissioned(QBCore.Functions.GetPlayer(source).PlayerData.citizenid, 'create'), IsNameAvailable(TrackName))
+ESX.RegisterServerCallback('racing:server:IsAuthorizedToCreateRaces', function(source, cb, TrackName)
+    cb(IsNameAvailable(TrackName))
 end)
 
-QBCore.Functions.CreateCallback('qb-racing:server:GetTrackData', function(source, cb, RaceId)
-    local result = MySQL.Sync.fetchAll('SELECT * FROM players WHERE citizenid = ?', {Races[RaceId].Creator})
+ESX.RegisterServerCallback('racing:server:GetTrackData', function(source, cb, RaceId)
+    local result = MySQL.scalar.await('SELECT * FROM users WHERE identifier = ?', {Races[RaceId].Creator})
     if result[1] ~= nil then
-        result[1].charinfo = json.decode(result[1].charinfo)
+        result[1].firstname = json.decode(result[1].firstname)
         cb(Races[RaceId], result[1])
     else
         cb(Races[RaceId], {
             charinfo = {
-                firstname = "Unknown",
-                lastname = "Unknown"
+                firstname = "Unknown"
             }
         })
     end
-end)
-
-QBCore.Commands.Add(Lang:t("commands.create_racing_fob_command"), Lang:t("commands.create_racing_fob_description"), { {name='type', help='Basic/Master'}, {name='identifier', help='CitizenID or ID'}, {name='Racer Name', help='Racer Name to associate with Fob'} }, true, function(source, args)
-    local type = args[1]
-    local citizenid = args[2]
-
-    local name = {}
-    for i = 3, #args do
-        name[#name+1] = args[i]
-    end
-    name = table.concat(name, ' ')
-
-    local fobTypes = {
-        ['basic'] = "fob_racing_basic",
-        ['master'] = "fob_racing_master"
-    }
-
-    if fobTypes[type:lower()] then
-        type = fobTypes[type:lower()]
-    else
-        TriggerClientEvent('QBCore:Notify', source, Lang:t("error.invalid_fob_type"), "error")
-        return
-    end
-
-    if tonumber(citizenid) then
-        local Player = QBCore.Functions.GetPlayer(tonumber(citizenid))
-        if Player then
-            citizenid = Player.PlayerData.citizenid
-        else
-            TriggerClientEvent('QBCore:Notify', source, Lang:t("error.id_not_found"), "error")
-            return
-        end
-    end
-
-    if #name >= Config.MaxRacerNameLength then
-        TriggerClientEvent('QBCore:Notify', source, Lang:t("error.name_too_short"), "error")
-        return
-    end
-
-    if #name <= Config.MinRacerNameLength then
-        TriggerClientEvent('QBCore:Notify', source, Lang:t("error.name_too_long"), "error")
-        return
-    end
-
-    QBCore.Functions.GetPlayer(source).Functions.AddItem(type, 1, nil, { owner = citizenid, name = name })
-    TriggerClientEvent('inventory:client:ItemBox', source, QBCore.Shared.Items[type], 'add', 1)
-end, 'admin')
-
-QBCore.Functions.CreateUseableItem("fob_racing_basic", function(source, item)
-    UseRacingFob(source, item)
-end)
-
-QBCore.Functions.CreateUseableItem("fob_racing_master", function(source, item)
-    UseRacingFob(source, item)
 end)
