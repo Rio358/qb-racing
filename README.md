@@ -1,11 +1,17 @@
-# ItsANoBrainer
+A Special thank you to the original author of this qb-lapraces converter and primary modification on which this *functional* conversion is based upon.
 
-If you like or use this resource, please consider supporting by starring the repo and checking out my other resources.
+# [ItsANoBrainer](https://github.com/ItsANoBrainer/qb-racing)
+
+If you like or use this resource, please consider supporting by starring the repo and checking out his other resources.
 
 ## _QBCore Racing_
 Original code converted, tied up, slightly rewritten, and features added from [qb-lapraces](https://github.com/qbcore-framework/qb-lapraces).
+Further framework conversion by muah.
+
 
 I really liked the qb-lapraces, but I wanted a standalone version that did not require qb-phone, as well as some custom features so here it is!
+
+^ This but also ESX has shit for racing scripts so in the spirit of sharing, voila.
 
 This so
 
@@ -33,12 +39,15 @@ You only need either this resource, or qb-lapraces, not both. I have not tested 
 5. Until my [qb-menu pull request](https://github.com/qbcore-framework/qb-menu/pull/23) is approved (or denied), permission enable/disable config support will not work. You can either wait for the PR, just make the changes in the PR to your version, or implement your own logic in the script.
 
 ## Dependencies
+* The below, contrary to what you may believe, are mostly framework agnostic and are infact still dependencies in this conversion.
+* 
 * [qb-menu](https://github.com/qbcore-framework/qb-menu)
 * [qb-input](https://github.com/qbcore-framework/qb-input)
+* [ox_inventory](https://github.com/overextended/ox_inventory) for this hyper specific version
 
 ## Features
-* Standalone racing script not requiring qb-phone to utilize
-* Items to immerse your racing scene with Racer Names
+* Standalone racing script not requiring qb-phone or qb-core to utilize
+* Items to immerse your racing scene with Racer Names 
 * Config options to adjust item permissions to your liking
 * Config options to adjust different options
 * Locale Support
